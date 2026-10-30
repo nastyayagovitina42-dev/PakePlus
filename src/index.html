@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Альфа-Банк</title>
+<style>
+    :root {
+        --bg: #121212;
+        --card-bg: #222222;
+        --text: #ffffff;
+        --text-muted: #888888;
+        --red: #e3001b;
+        --green: #a4f05b;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { 
+        background-color: var(--bg); color: var(--text); 
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; 
+        margin: 0; padding: 0; overflow: hidden; 
+        /* Убрал отсюда user-select: none, чтобы заработал ввод */
+    }
+    
+    /* Утилиты и общие классы */
+    .view { display: none; height: 100vh; overflow-y: auto; overflow-x: hidden; padding-bottom: 80px; }
+    .view.active { display: block; }
+    .flex { display: flex; align-items: center; }
+    .flex-between { display: flex; justify-content: space-between; align-items: center; }
+    .text-muted { color: var(--text-muted); }
+    .bold { font-weight: bold; }
+    .back-btn { font-size: 24px; color: white; cursor: pointer; padding: 10px; margin-left: -10px; }
+    
+    /* --- 1. ЭКРАН БЛОКИРОВКИ --- */
+    #view-lock { background: #121212; }
+    #view-lock.active { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+    .lock-header { font-size: 20px; font-weight: bold; margin-bottom: 40px; margin-top: -100px; }
+    .lock-dots { display: flex; gap: 15px; margin-bottom: 50px; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; background: #333; transition: 0.2s; }
+    .dot.filled { background: white; }
+    .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px 40px; }
+    .key { font-size: 28px; font-weight: 400; cursor: pointer; text-align: center; padding: 15px; border-radius: 50%; width: 70px; height: 70px; line-height: 40px; }
+    .key:active { background: #333; }
+    .key-extra { font-size: 14px; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2;}
+    .fingerprint { font-size: 28px; color: white; }
+
+    /* --- ОБЩИЕ ЭЛЕМЕНТЫ ИНТЕРФЕЙСА --- */
+    .header { padding: 20px 15px 10px 15px; }
+    .avatar { width: 40px; height: 40px; background: #333; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 18px; margin-right: 10px; }
+    .user-name { font-size: 18px; font-weight: bold; line-height: 1.2;}
+    .user-sub { font-size: 12px; color: var(--text-muted); }
+    .bonus-pill { background: var(--green); color: black; padding: 6px 12px; border-radius: 20px; font-weight: bold; font-size: 14px;}
+    
+    .section-title { color: var(--text-muted); font-size: 14px; margin: 20px 15px 10px 15px; display: flex; justify-content: space-between; }
+    
+    /* Карточки */
+    .card { background: var(--card-bg); border-radius: 16px; padding: 15px; margin: 0 15px 10px 15px; }
+    .card-title { color: var(--text-muted); font-size: 13px; margin-bottom: 5px; }
+    .card-balance { font-size: 22px; font-weight: bold; }
+    
+    /* Нижнее меню */
+    .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: #1a1a1a; display: none; justify-content: space-around; padding: 10px 0 20px 0; border-top: 1px solid #333; z-index: 100; }
+    .nav-item { color: var(--text-muted); font-size: 10px; text-align: center; cursor: pointer; width: 20%; }
+    .nav-item.active { color: white; }
+    .nav-icon { font-size: 22px; display: block; margin-bottom: 4px; height: 24px; }
+    .nav-dice { background: var(--red); width: 24px; height: 24px; border-radius: 6px; display: inline-flex; justify-content: center; align-items: center; color: white; font-size: 16px; }
+    .nav-badge { background: var(--red); color: white; border-radius: 10px; padding: 2px 6px; font-size: 10px; position: absolute; top: 5px; right: 15px;}
+
+    /* Баннеры Главной */
+    .banner-row { display: flex; overflow-x: auto; padding: 0 15px; gap: 10px; scrollbar-width: none; }
+    .banner { min-width: 140px; height: 180px; border-radius: 16px; padding: 15px; display: flex; flex-direction: column; justify-content: flex-end; position: relative; overflow: hidden; }
+    .banner h4 { margin: 0; font-size: 15px; line-height: 1.2; position: relative; z-index: 2;}
+    .banner p { margin: 5px 0 0 0; font-size: 12px; position: relative; z-index: 2; }
+    .bg-purple { background: linear-gradient(135deg, #d3b4ff 0%, #a47bf3 100%); color: #000; }
+    
+    .grid-icons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; padding: 0 15px; text-align: center; }
+    .grid-icon { background: #2a2a2a; width: 50px; height: 50px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 5px auto; font-size: 24px;}
+    .grid-text { font-size: 11px; color: #ccc; line-height: 1.2;}
+
+    /* Платежи */
+    .list-item { display: flex; align-items: center; padding: 15px; border-bottom: 1px solid #2a2a2a; cursor: pointer;}
+    .list-item:last-child { border-bottom: none; }
+    .list-icon { width: 40px; height: 40px; border-radius: 10px; background: #333; display: flex; justify-content: center; align-items: center; margin-right: 15px; font-size: 20px; }
+    .list-text { font-size: 15px; flex: 1; }
+
+    /* Переводы */
+    .transfer-card { background: var(--card-bg); border-radius: 16px; padding: 15px; margin: 15px; }
+    .transfer-account { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 1px solid #333; cursor: pointer;}
+    .recipient-btn { display: flex; align-items: center; padding-top: 15px; cursor: pointer;}
+    .recipient-plus { width: 40px; height: 40px; border-radius: 10px; background: #333; display: flex; justify-content: center; align-items: center; margin-right: 15px; font-size: 24px; }
+    
+    .input-msg { background: var(--card-bg); border-radius: 12px; padding: 15px; margin: 0 15px; color: var(--text-muted); font-size: 15px;}
+    
+    /* Поиск и ввод номера */
+    .search-recipient { background: var(--card-bg); border-radius: 12px; padding: 12px 15px; margin: 15px; display: flex; align-items: center; }
+    .search-recipient input { background: transparent; border: none; color: white; font-size: 16px; margin-left: 10px; width: 100%; outline: none; user-select: text; }
+    .search-recipient input::placeholder { color: var(--text-muted); }
+    .contact-avatar { width: 40px; height: 40px; border-radius: 50%; background: #333; display: flex; justify-content: center; align-items: center; margin-right: 15px; font-size: 14px; color: #aaa; }
+    .contact-info p { margin: 0; }
+    .contact-name { font-size: 15px; color: white;}
+    .contact-phone { font-size: 13px; color: var(--text-muted); margin-top: 2px !important;}
+    
+    /* Плавающие кнопки */
+    .fab { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: white; color: black; padding: 15px 40px; border-radius: 30px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.5); display: none; align-items: center; gap: 15px; z-index: 99;}
+    .fab-back { background: #333; color: white; width: 50px; height: 50px; border-radius: 16px; display: none; justify-content: center; align-items: center; font-size: 24px; position: fixed; left: 15px; bottom: 90px; z-index: 99;}
+</style>
+</head>
+<body>
+
+    <!-- 1. ЭКРАН ВХОДА -->
+    <div id="view-lock" class="view active">
+        <div class="lock-header">Добрый вечер, Валентина!</div>
+        <div style="margin-bottom: 20px; font-size: 15px;">Введите код</div>
+        <div class="lock-dots">
+            <div class="dot" id="d1"></div>
+            <div class="dot" id="d2"></div>
+            <div class="dot" id="d3"></div>
+            <div class="dot" id="d4"></div>
+        </div>
+        <div class="keypad">
+            <div class="key" onclick="press(1)">1</div>
+            <div class="key" onclick="press(2)">2</div>
+            <div class="key" onclick="press(3)">3</div>
+            <div class="key" onclick="press(4)">4</div>
+            <div class="key" onclick="press(5)">5</div>
+            <div class="key" onclick="press(6)">6</div>
+            <div class="key" onclick="press(7)">7</div>
+            <div class="key" onclick="press(8)">8</div>
+            <div class="key" onclick="press(9)">9</div>
+            <div class="key key-extra">Забыли<br>код?</div>
+            <div class="key" onclick="press(0)">0</div>
+            <div class="key fingerprint">👆</div>
+        </div>
+    </div>
+
+    <!-- 2. ГЛАВНЫЙ ЭКРАН -->
+    <div id="view-main" class="view">
+        <div class="header flex-between">
+            <div class="flex">
+                <div class="avatar">👤</div>
+                <div>
+                    <div class="user-name">Валентина ></div>
+                    <div class="user-sub">Альфа-Смарт</div>
+                </div>
+            </div>
+            <div class="bonus-pill">💰 7000 ₽</div>
+        </div>
+
+        <div class="section-title">Общий баланс</div>
+        <div class="card flex-between" style="align-items: flex-start;">
+            <div>
+                <div class="card-balance" style="font-size: 28px;">93,7 ₽</div>
+            </div>
+            <div style="width: 50px; height: 50px; border-radius: 50%; background: conic-gradient(#e3001b 0% 70%, #fff 70% 80%, #6f9cc6 80% 100%); display: flex; justify-content: center; align-items: center;">
+                <div style="width: 30px; height: 30px; background: var(--card-bg); border-radius: 50%;"></div>
+            </div>
+        </div>
+
+        <div class="section-title">Карты</div>
+        <div class="card flex-between">
+            <div>
+                <div class="card-title">Текущий счёт</div>
+                <div class="card-balance">93,7 ₽</div>
+            </div>
+            <div style="background: var(--red); width: 70px; height: 45px; border-radius: 6px; position: relative;">
+                <span style="position: absolute; top: 4px; left: 6px; font-size: 10px; font-weight: bold;">А</span>
+                <span style="position: absolute; bottom: 4px; right: 6px; font-size: 9px;">1564 МИР</span>
+            </div>
+        </div>
+        <div class="card flex-between">
+            <div>
+                <div class="card-title">Счёт кредитной карты</div>
+                <div class="card-balance">50 000,00 ₽</div>
+            </div>
+            <div style="background: var(--red); width: 70px; height: 45px; border-radius: 6px; position: relative;">
+                <span style="position: absolute; top: 4px; left: 6px; font-size: 10px; font-weight: bold;">А</span>
+                <span style="position: absolute; bottom: 4px; right: 6px; font-size: 9px;">3803 МИР</span>
+            </div>
+        </div>
+
+        <div class="section-title" style="margin-top:30px;">Кредиты</div>
+        <div class="card">
+            <div class="card-title">Получите</div>
+            <div class="card-balance flex-between">
+                <span>#{VALUE_NUMBER1} ₽</span>
+                <span style="color:var(--text-muted); font-size: 18px;">✕</span>
+            </div>
+        </div>
+
+        <div class="section-title">Инвестиции</div>
+        <div class="card flex-between" style="background: #222; margin-bottom: 15px;">
+            <div>
+                <div class="card-title">Бонус для новичков</div>
+                <div class="card-balance">7000 ₽</div>
+            </div>
+            <div style="color:var(--text-muted);">✕</div>
+        </div>
+
+        <div class="section-title">Привилегии Альфа-Смарт ></div>
+        <div class="banner-row">
+            <div class="banner bg-purple">
+                <h4>15 привилегий</h4>
+                <p>Пользуйтесь уже сейчас</p>
+            </div>
+            <div class="banner" style="background: #4a3b52;">
+                <h4>Альфа-Смарт на троих</h4>
+                <p>Подключить за 499 ₽</p>
+            </div>
+        </div>
+        
+        <div class="section-title">Деньги под рукой ></div>
+        <div class="card flex-between" style="background: #2a2a2a;">
+            <div>
+                <div class="card-balance">До 50 000 ₽</div>
+                <div class="card-title">На любые траты</div>
+            </div>
+            <div style="background: white; color: black; padding: 8px 15px; border-radius: 20px; font-weight: bold; font-size: 14px;">Получить</div>
+        </div>
+
+        <div class="section-title">Альфа-Выгодно ></div>
+        <div class="banner-row">
+            <div class="banner" style="background:#ffd1b3; color:black;">
+                <h4>Забирайте весь кэшбэк</h4>
+                <p>А еще скидки и промокоды</p>
+            </div>
+            <div class="banner" style="background:#007aff; color:white;">
+                <h4>Суперкэшбэк до 100%</h4>
+                <p>АЛЬФА ПЯТНИЦА</p>
+            </div>
+        </div>
+        
+        <div class="grid-icons" style="margin-top: 15px;">
+            <div><div class="grid-icon">☂️</div><div class="grid-text">Страховки<br>до 10%</div></div>
+            <div><div class="grid-icon">✈️</div><div class="grid-text">Тревел<br>до 10%</div></div>
+            <div><div class="grid-icon">🎰</div><div class="grid-text">Альфа-<br>Мания</div></div>
+            <div><div class="grid-icon">💧</div><div class="grid-text">Заправки<br>до 2%</div></div>
+        </div>
+        
+        <div style="height: 50px;"></div>
+    </div>
+
+    <!-- 3. ЭКРАН ПЛАТЕЖИ -->
+    <div id="view-payments" class="view">
+        <div class="header flex-between">
+            <div class="flex">
+                <div class="avatar">👤</div>
+                <div class="user-name" style="font-size: 22px;">Платежи</div>
+            </div>
+            <div style="font-size: 20px;">🔍  ⛶</div>
+        </div>
+
+        <div class="grid-icons" style="grid-template-columns: repeat(3, 1fr); text-align: left;">
+            <div class="card" style="margin:0; padding:10px;">
+                <div class="grid-icon" style="margin:0 0 10px 0; background: black; color: white;">t2</div>
+                <div class="grid-text" style="font-size: 13px;">Мои<br>платежи</div>
+            </div>
+            <div class="card" style="margin:0; padding:10px;">
+                <div class="grid-icon" style="margin:0 0 10px 0; background: #ff4d4d; color: white;">🏢</div>
+                <div class="grid-text" style="font-size: 13px;">Счета ЖКУ<br>Дом</div>
+            </div>
+            <div class="card" style="margin:0; padding:10px;">
+                <div class="grid-icon" style="margin:0 0 10px 0; background: #4CAF50; color: white;">🚗</div>
+                <div class="grid-text" style="font-size: 13px;">Штрафы<br>Авто</div>
+            </div>
+        </div>
+
+        <div class="card" style="background: #b3b3ff; color: black; display: flex; justify-content: space-between; align-items: center; margin-top: 20px;">
+            <div>
+                <div class="bold" style="font-size: 16px;">Узнайте всё<br>о мошенниках</div>
+                <div style="font-size: 12px; margin-top: 5px;">в игре Код красный</div>
+            </div>
+            <div style="font-size: 40px;">🕵️‍♂️</div>
+        </div>
+
+        <div class="section-title" style="font-size: 18px; color: white; font-weight: bold;">Переводы</div>
+        <div class="grid-icons">
+            <div onclick="goToTransferPhone()" style="cursor:pointer;">
+                <div class="grid-icon">↔️</div>
+                <div class="grid-text">Между<br>счетами</div>
+            </div>
+            <div onclick="goToTransferPhone()" style="cursor:pointer;">
+                <div class="grid-icon">📱</div>
+                <div class="grid-text" style="color: white; font-weight: bold;">По номеру<br>телефона</div>
+            </div>
+            <div>
+                <div class="grid-icon">🌐</div>
+                <div class="grid-text">За рубеж</div>
+            </div>
+            <div>
+                <div class="grid-icon">💳</div>
+                <div class="grid-text">По номеру<br>карты</div>
+            </div>
+        </div>
+
+        <div class="section-title" style="font-size: 18px; color: white; font-weight: bold;">Платежи</div>
+        <div class="card" style="border-radius: 20px; padding: 15px;">
+            <div class="flex" style="gap: 10px;">
+                <span>😍</span> Все платежи без комиссии
+            </div>
+        </div>
+        
+        <div style="height: 50px;"></div>
+    </div>
+
+    <!-- 4. ПЕРЕВОД ПО НОМЕРУ ТЕЛЕФОНА -->
+    <div id="view-transfer-phone" class="view">
+        <div class="header flex" style="justify-content: center; position: relative;">
+            <div class="back-btn" onclick="showView('view-payments')" style="position: absolute; left: 15px;">←</div>
+            <div class="bold" style="font-size: 18px;">По номеру телефона</div>
+        </div>
+
+        <div class="transfer-card">
+            <div class="transfer-account">
+                <div class="flex">
+                    <div class="list-icon" style="background: #333; border-radius: 8px;">₽</div>
+                    <div>
+                        <div class="bold" style="font-size: 18px;">93,7 ₽</div>
+                        <div class="text-muted" style="font-size: 13px;">Текущий счёт <span style="float: right; margin-left: 10px;">..4822</span></div>
+                    </div>
+                </div>
+                <div class="text-muted">⌄</div>
+            </div>
+            <div class="recipient-btn" onclick="showView('view-recipient')">
+                <div class="recipient-plus">+</div>
+                <div>
+                    <div class="bold" style="font-size: 15px;">Номер телефона</div>
+                    <div class="text-muted" style="font-size: 13px;">получателя</div>
+                </div>
+                <div class="text-muted" style="margin-left: auto;">⌄</div>
+            </div>
+        </div>
+
+        <div class="text-muted" style="margin: 15px; font-size: 13px;">Зачисление происходит моментально</div>
+
+        <div class="input-msg">Сообщение</div>
+
+        <div style="position: absolute; bottom: 30px; left: 15px;">
+            <div class="text-muted" style="font-size: 24px;">0 ₽</div>
+            <div class="text-muted" style="font-size: 13px;">Тарифы и лимиты ⓘ</div>
+        </div>
+    </div>
+
+    <!-- 5. ВЫБОР ПОЛУЧАТЕЛЯ -->
+    <div id="view-recipient" class="view">
+        <div class="header flex" style="justify-content: center; position: relative;">
+            <div class="back-btn" onclick="showView('view-transfer-phone')" style="position: absolute; left: 15px;">←</div>
+            <div class="bold" style="font-size: 18px;">Кому</div>
+        </div>
+
+        <div class="search-recipient">
+            <span>🇷🇺</span>
+            <!-- Исправлено: теперь ввод работает -->
+            <input type="text" inputmode="numeric" placeholder="Имя или телефон" id="phone-input" oninput="formatPhone(this)">
+        </div>
+
+        <!-- Динамический результат при вводе цифр (скрыт по умолчанию) -->
+        <div class="list-item" id="dynamic-search-result" style="display: none; background: #2a2a2a; border-radius: 12px; margin: 0 15px;">
+            <div class="list-icon">📱</div>
+            <div class="list-text">
+                <div class="bold">Перевод по номеру</div>
+                <div class="text-muted" style="font-size: 13px;" id="typed-phone-display">+7</div>
+            </div>
+        </div>
+
+        <!-- Список контактов (скроется, когда начнете печатать) -->
+        <div id="recent-contacts-block">
+            <div class="list-item" style="border-bottom: none;">
+                <div class="list-icon">📷</div>
+                <div class="list-text">Сканировать номер</div>
+            </div>
+            
+            <div class="list-item" style="border-bottom: none;">
+                <div class="list-icon">📱</div>
+                <div class="list-text">
+                    <div class="bold">Себе</div>
+                    <div class="text-muted" style="font-size: 13px;">+7 951 227-43-82</div>
+                </div>
+            </div>
+
+            <div class="section-title" style="color: white; font-size: 16px; font-weight: bold;">Последние переводы</div>
+            
+            <!-- Старые контакты -->
+            <div class="list-item">
+                <div class="contact-avatar">НА</div>
+                <div class="contact-info">
+                    <p class="contact-name">Никита Анатольевич С.</p>
+                    <p class="contact-phone">+7 905 072-77-59</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="contact-avatar">ПД</div>
+                <div class="contact-info">
+                    <p class="contact-name">Парвиз Дилшодович Х.</p>
+                    <p class="contact-phone">+7 913 281-72-11</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="contact-avatar">ЕА</div>
+                <div class="contact-info">
+                    <p class="contact-name">Егор Алексеевич Г.</p>
+                    <p class="contact-phone">+7 996 334-50-57</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="contact-avatar">ОВ</div>
+                <div class="contact-info">
+                    <p class="contact-name">Ольга Викторовна М.</p>
+                    <p class="contact-phone">+7 926 111-22-33</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="contact-avatar">АП</div>
+                <div class="contact-info">
+                    <p class="contact-name">Алексей Петрович К.</p>
+                    <p class="contact-phone">+7 903 444-55-66</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="contact-avatar">ИС</div>
+                <div class="contact-info">
+                    <p class="contact-name">Ирина Сергеевна Л.</p>
+                    <p class="contact-phone">+7 985 777-88-99</p>
+                </div>
+            </div>
+
+            <!-- 5 НОВЫХ КОНТАКТОВ -->
+            <div class="list-item">
+                <div class="contact-avatar">ДВ</div>
+                <div class="contact-info">
+                    <p class="contact-name">Дмитрий Владимирович С.</p>
+                    <p class="contact-phone">+7 999 123-45-67</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="contact-avatar">АА</div>
+                <div class="contact-info">
+                    <p class="contact-name">Анна Андреевна П.</p>
+                    <p class="contact-phone">+7 911 987-65-43</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="contact-avatar">МИ</div>
+                <div class="contact-info">
+                    <p class="contact-name">Максим Игоревич Т.</p>
+                    <p class="contact-phone">+7 916 555-44-33</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="contact-avatar">ЕД</div>
+                <div class="contact-info">
+                    <p class="contact-name">Елена Дмитриевна В.</p>
+                    <p class="contact-phone">+7 921 222-11-00</p>
+                </div>
+            </div>
+            <div class="list-item">
+                <div class="contact-avatar">АО</div>
+                <div class="contact-info">
+                    <p class="contact-name">Артем Олегович Р.</p>
+                    <p class="contact-phone">+7 926 888-77-66</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- НИЖНЕЕ МЕНЮ (ОБЩЕЕ) -->
+    <div class="bottom-nav" id="bottom-nav">
+        <div class="nav-item" onclick="showView('view-main', 'main')">
+            <span class="nav-icon">🏠</span>Главный
+        </div>
+        <div class="nav-item" onclick="showView('view-payments', 'payments')">
+            <span class="nav-icon">↔️</span>Платежи
+        </div>
+        <div class="nav-item">
+            <span class="nav-icon"><div class="nav-dice">⚄</div></span>
+        </div>
+        <div class="nav-item">
+            <span class="nav-icon">🕒</span>История
+        </div>
+        <div class="nav-item" style="position: relative;">
+            <span class="nav-badge">1</span>
+            <span class="nav-icon">💬</span>Чаты
+        </div>
+    </div>
+
+    <!-- Кнопки на главном экране -->
+    <div class="fab" id="fab-main">
+        <span style="font-size: 20px;">+</span> Новый продукт
+    </div>
+    <div class="fab-back" id="fab-back">
+        ←
+    </div>
+
+    <script>
+        // === Логика экрана блокировки ===
+        let passcode = "";
+        const correctCode = "2912";
+
+        function press(num) {
+            if (passcode.length < 4) {
+                passcode += num;
+                updateDots();
+            }
+            if (passcode.length === 4) {
+                setTimeout(checkCode, 150);
+            }
+        }
+
+        function updateDots() {
+            for (let i = 1; i <= 4; i++) {
+                const dot = document.getElementById('d' + i);
+                if (i <= passcode.length) {
+                    dot.classList.add('filled');
+                } else {
+                    dot.classList.remove('filled');
+                }
+            }
+        }
+
+        function checkCode() {
+            if (passcode === correctCode) {
+                showView('view-main', 'main');
+            } else {
+                alert("Неверный код");
+                passcode = "";
+                updateDots();
+            }
+        }
+
+        // === Навигация по экранам ===
+        function showView(viewId, navId = null) {
+            document.querySelectorAll('.view').forEach(el => el.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            window.scrollTo(0,0);
+
+            const bottomNav = document.getElementById('bottom-nav');
+            const fab = document.getElementById('fab-main');
+            const fabBack = document.getElementById('fab-back');
+            
+            if (viewId === 'view-lock' || viewId === 'view-transfer-phone' || viewId === 'view-recipient') {
+                bottomNav.style.display = 'none';
+                fab.style.display = 'none';
+                fabBack.style.display = 'none';
+            } else {
+                bottomNav.style.display = 'flex';
+                fab.style.display = viewId === 'view-main' ? 'flex' : 'none';
+                fabBack.style.display = viewId === 'view-main' ? 'flex' : 'none';
+            }
+
+            if (navId) {
+                document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+                if (navId === 'main') document.querySelectorAll('.nav-item')[0].classList.add('active');
+                if (navId === 'payments') document.querySelectorAll('.nav-item')[1].classList.add('active');
+            }
+
+            // Очищаем инпут при выходе с экрана получателя
+            if (viewId !== 'view-recipient') {
+                document.getElementById('phone-input').value = '';
+                formatPhone(document.getElementById('phone-input'));
+            }
+        }
+
+        function goToTransferPhone() {
+            showView('view-transfer-phone');
+        }
+
+        // === Живой ввод и форматирование номера ===
+        function formatPhone(input) {
+            // Оставляем только цифры
+            let digits = input.value.replace(/\D/g, '');
+            
+            // Если начинается с 7 или 8, убираем первую цифру
+            if (digits.startsWith('7') || digits.startsWith('8')) {
+                digits = digits.substring(1);
+            }
+            
+            // Ограничиваем длину 10 цифрами
+            digits = digits.substring(0, 10);
+
+            // Форматируем
+            let formatted = '';
+            if (digits.length > 0) {
+                formatted = '+7 ' + digits.substring(0, 3);
+                if (digits.length >= 4) formatted += ' ' + digits.substring(3, 6);
+                if (digits.length >= 7) formatted += '-' + digits.substring(6, 8);
+                if (digits.length >= 9) formatted += '-' + digits.substring(8, 10);
+            }
+
+            // Присваиваем отформатированное значение
+            input.value = formatted;
+
+            // Логика скрытия/показа блоков
+            const dynamicResult = document.getElementById('dynamic-search-result');
+            const contactsBlock = document.getElementById('recent-contacts-block');
+            const typedPhoneDisplay = document.getElementById('typed-phone-display');
+
+            if (digits.length > 0) {
+                dynamicResult.style.display = 'flex';
+                contactsBlock.style.display = 'none';
+                if(typedPhoneDisplay) typedPhoneDisplay.innerText = formatted;
+            } else {
+                dynamicResult.style.display = 'none';
+                contactsBlock.style.display = 'block';
+            }
+        }
+    </script>
+</body>
+</html>
